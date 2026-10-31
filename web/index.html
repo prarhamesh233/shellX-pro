@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShellX — Supplier Check</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+  // Theme: dark by default; remember the viewer's choice when storage is available.
+  (function () { let t = 'dark'; try { t = localStorage.getItem('shellx-theme') || 'dark'; } catch (e) {}
+    document.documentElement.classList.toggle('dark', t === 'dark'); })();
+</script>
+<script src="https://cdn.tailwindcss.com/3.4.5"></script>
+<script>
+tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+  colors: { brand: { 50: '#eef4ff', 100: '#dbe6ff', 500: '#3b6cf6', 600: '#2f57d6', 700: '#2546ad' } } } } }
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<style>
+  :root { --ok:#14915f; --okbg:#e8f7ef; --warn:#b86e00; --warnbg:#fff4e0; --bad:#c9372c; --badbg:#fdecea; --grey:#5b6476; --greybg:#f0f2f6; }
+  body { background: #f5f7fb; color: #1d2433; }
+  [x-cloak] { display: none !important; }
+  .card { background: #fff; border: 1px solid #e6e9f0; border-radius: 18px; box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 4px 16px rgba(16,24,40,.04); }
+  .inp { width: 100%; background: #fff; border: 1.5px solid #dfe3ec; border-radius: 12px; padding: 11px 14px; font-size: 15px; outline: none; transition: border .15s, box-shadow .15s; }
+  .inp:focus { border-color: #3b6cf6; box-shadow: 0 0 0 4px #3b6cf61a; }
+  .lbl { font-size: 14px; font-weight: 600; color: #2b3345; margin-bottom: 6px; display: block }
+  .hint { font-size: 12.5px; color: #6b7487; margin-top: 4px }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 12px; padding: 11px 18px; font-weight: 600; font-size: 15px; transition: all .15s; }
+  .btn-primary { background: #3b6cf6; color: #fff; } .btn-primary:hover { background: #2f57d6 } .btn-primary:disabled { opacity: .6 }
+  .btn-soft { background: #fff; border: 1.5px solid #dfe3ec; color: #2b3345 } .btn-soft:hover { border-color: #3b6cf6; color: #2f57d6 }
+  .chip { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; white-space: nowrap; display: inline-block }
+  .c-Flag { background: var(--badbg); color: var(--bad) } .c-Partial { background: var(--warnbg); color: var(--warn) }
+  .c-Pass { background: var(--okbg); color: var(--ok) } .c-NA, .c-U { background: var(--greybg); color: var(--grey) }
+  .v-CLEAR { --c: var(--ok); --cb: var(--okbg) } .v-REVIEW { --c: var(--warn); --cb: var(--warnbg) }
+  .v-HIGH_RISK { --c: var(--bad); --cb: var(--badbg) } .v-INSUFFICIENT_DATA { --c: var(--grey); --cb: var(--greybg) }
+  .tab { padding: 8px 14px; border-radius: 10px; font-weight: 600; font-size: 14.5px; color: #5b6476 } .tab:hover { color: #1d2433 }
+  .tab.on { background: #eef4ff; color: #2546ad }
+  .seg { padding: 8px 12px; border-radius: 10px; border: 1.5px solid #dfe3ec; font-size: 13.5px; font-weight: 500; background: #fff }
+  .seg.on { border-color: #3b6cf6; background: #eef4ff; color: #2546ad }
+  .fade { animation: fade .35s ease both } @keyframes fade { from { opacity: 0; transform: translateY(6px) } to { opacity: 1 } }
+  .spin { animation: spin 1s linear infinite } @keyframes spin { to { transform: rotate(360deg) } }
+  #graph { height: 480px; background: #fafbfd; border: 1px solid #e6e9f0; border-radius: 14px }
+  details > summary { list-style: none; cursor: pointer } details > summary::-webkit-details-marker { display: none }
+  .tip { position: relative; display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #eef1f6; color: #5b6476; font-size: 11px; font-weight: 700; cursor: help }
+  .tip:hover::after { content: attr(data-tip); position: absolute; left: 50%; top: 24px; transform: translateX(-50%); width: 260px; background: #1d2433; color: #fff; font-size: 12.5px; font-weight: 400; line-height: 1.45; padding: 10px 12px; border-radius: 10px; z-index: 50; white-space: normal }
+
+  /* ---------- Dark theme ---------- */
+  html.dark { color-scheme: dark; --ok:#4ad19a; --okbg:#123326; --warn:#f2b453; --warnbg:#3a2a10; --bad:#ff7b70; --badbg:#3d1a19; --grey:#a3acc0; --greybg:#232a3a; }
+  html.dark body { background: #0e121b; color: #e7eaf2; }
+  html.dark .card { background: #161b27; border-color: #262d3d; box-shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25); }
+  html.dark header { background: #121621 !important; border-color: #232a3a !important; }
+  html.dark .inp { background: #0f131c; border-color: #2c3446; color: #e7eaf2; }
+  html.dark .inp::placeholder { color: #66708a; }
+  html.dark .lbl { color: #d9deea; } html.dark .hint { color: #8b94aa; }
+  html.dark .btn-soft { background: #1b2130; border-color: #2c3446; color: #d9deea; }
+  html.dark .btn-soft:hover { border-color: #5b84ff; color: #a9c0ff; }
+  html.dark .btn-primary { background: #4a78ff; } html.dark .btn-primary:hover { background: #5b84ff; }
+  html.dark .tab { color: #9aa3b8; } html.dark .tab:hover { color: #e7eaf2; } html.dark .tab.on { background: #1d2740; color: #a9c0ff; }
+  html.dark .seg { background: #1b2130; border-color: #2c3446; color: #cfd5e3; } html.dark .seg.on { background: #1d2740; border-color: #5b84ff; color: #a9c0ff; }
+  html.dark .tip { background: #262d3d; color: #b6bdd0; } html.dark .tip:hover::after { background: #e7eaf2; color: #121621; }
+  html.dark #graph { background: #11151f; border-color: #262d3d; }
+  html.dark .text-\[\#1d2433\], html.dark .hover\:text-\[\#1d2433\]:hover { color: #f1f3f8 !important; }
+  html.dark .text-\[\#2b3345\] { color: #dfe3ee !important; }
+  html.dark .text-\[\#4a5266\] { color: #c3c9d8 !important; }
+  html.dark .text-\[\#5b6476\] { color: #aab2c5 !important; }
+  html.dark .text-\[\#6b7487\] { color: #9aa3b8 !important; }
+  html.dark .text-\[\#8a93a6\], html.dark .text-\[\#a0a8b8\] { color: #7d879e !important; }
+  html.dark .text-brand-600, html.dark .text-\[\#3b6cf6\] { color: #8fb0ff !important; }
+  html.dark .bg-white { background: #1b2130 !important; }
+  html.dark .bg-\[\#f6f8fb\], html.dark .bg-\[\#fafbfd\], html.dark .hover\:bg-\[\#fafbfd\]:hover { background: #1b2130 !important; }
+  html.dark .bg-\[\#f0f2f6\], html.dark .bg-\[\#eef1f6\] { background: #232a3a !important; }
+  html.dark .bg-brand-50 { background: #1d2740 !important; }
+  html.dark .border-\[\#e6e9f0\], html.dark .border-\[\#eef1f6\], html.dark .border-\[\#dfe3ec\] { border-color: #2a3243 !important; }
+  html.dark .divide-\[\#eef1f6\] > * + * { border-color: #262d3d !important; }
+  html.dark .bg-\[\#cdeedd\] { background: #1f5a40 !important; } html.dark .bg-\[\#ffe3b3\] { background: #6b4e17 !important; }
+  html.dark .bg-\[\#f8cbc6\] { background: #6e2a26 !important; }
+  html.dark .bg-\[\#fff8e6\] { background: #2e2512 !important; } html.dark .border-\[\#f3d58a\] { border-color: #5c4a1c !important; }
+  html.dark .text-\[\#7a5600\] { color: #f2c873 !important; }
+  html.dark .border-white { border-color: #161b27 !important; }
+  html.dark .bg-\[\#1d2433\]\/50 { background: rgba(0,0,0,.6) !important; }
+  .theme-btn { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; border: 1.5px solid #dfe3ec; background: #fff; font-size: 17px; }
+  html.dark .theme-btn { background: #1b2130; border-color: #2c3446; }
+</style>
+</head>
+<body class="font-sans antialiased min-h-screen" x-data="app()">
+
+<header class="bg-white border-b border-[#e6e9f0] sticky top-0 z-30">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
+    <div class="flex items-center gap-2.5 mr-4">
+      <div class="w-9 h-9 rounded-xl grid place-items-center text-white font-extrabold" style="background:linear-gradient(135deg,#3b6cf6,#14b8a6)">✓</div>
+      <div><div class="font-extrabold text-lg leading-none">ShellX</div><div class="text-xs text-[#6b7487]">Check a supplier before you pay them</div></div>
+    </div>
+    <nav class="flex gap-1">
+      <button class="tab" :class="tab==='check'&&'on'" @click="tab='check'">Check a supplier</button>
+      <button class="tab" :class="tab==='history'&&'on'" @click="tab='history'; loadHistory()">Past checks</button>
+      <button class="tab" :class="tab==='how'&&'on'" @click="tab='how'">How it works</button>
+    </nav>
+    <button class="theme-btn ml-auto" @click="toggleTheme()" :title="dark ? 'Switch to light mode' : 'Switch to dark mode'" :aria-label="dark ? 'Switch to light mode' : 'Switch to dark mode'" x-text="dark ? '☀️' : '🌙'"></button>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-8">
+
+<!-- ======================= CHECK ======================= -->
+<section x-show="tab==='check'">
+
+  <!-- Form -->
+  <div x-show="!res && !running && !choice" class="grid lg:grid-cols-[1fr_340px] gap-6 fade">
+    <div class="card p-6 sm:p-8">
+      <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Is this supplier a real business?</h1>
+      <p class="text-[#5b6476] mt-2 mb-6">Enter the company's name and website. In under a minute we check public records, their website, staff, news and sanctions lists, and tell you whether it's safe to go ahead.</p>
+      <form @submit.prevent="start()" class="space-y-5">
+        <div>
+          <label class="lbl">Company name</label>
+          <input class="inp" x-model="f.company_name" required placeholder="e.g. Zerodha">
+        </div>
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div><label class="lbl">Website <span class="font-normal text-[#8a93a6]">(recommended)</span></label><input class="inp" x-model="f.domain" placeholder="e.g. zerodha.com"><div class="hint">Makes sure we check the right company.</div></div>
+          <div><label class="lbl">GST number <span class="font-normal text-[#8a93a6]">(optional)</span></label><input class="inp uppercase" x-model="f.gstin" placeholder="15 characters, from their invoice"></div>
+        </div>
+
+        <details class="rounded-xl border border-[#e6e9f0] bg-[#fafbfd]" :open="moreOpen" @toggle="moreOpen=$event.target.open">
+          <summary class="px-4 py-3 flex items-center justify-between text-sm font-semibold text-[#2b3345]">
+            <span>➕ Add what the supplier told you <span class="font-normal text-[#6b7487]">(optional, but makes the check much sharper)</span></span>
+            <span x-text="moreOpen?'▲':'▼'" class="text-[#8a93a6]"></span>
+          </summary>
+          <div class="px-4 pb-5 pt-1 space-y-4">
+            <p class="text-[13px] text-[#6b7487]">We compare what they <i>claim</i> with what we can <i>see</i>. Big gaps are the clearest warning sign.</p>
+            <div class="grid sm:grid-cols-2 gap-4">
+              <div><label class="lbl">Owner or director's name</label><input class="inp" x-model="f.director" placeholder="Full name"></div>
+              <div><label class="lbl">Number of employees they claim</label><input class="inp" type="number" min="0" x-model.number="f.declared_headcount" placeholder="e.g. 50"></div>
+            </div>
+            <div><label class="lbl">Yearly turnover they claim</label>
+              <div class="flex gap-2"><input class="inp" type="number" min="0" x-model.number="f.declared_turnover" placeholder="e.g. 50000000">
+                <div class="flex gap-1"><button type="button" class="seg" :class="f.turnover_currency==='INR'&&'on'" @click="f.turnover_currency='INR'">₹ INR</button><button type="button" class="seg" :class="f.turnover_currency==='USD'&&'on'" @click="f.turnover_currency='USD'">$ USD</button></div></div>
+              <div class="hint" x-show="f.declared_turnover" x-text="money(f.declared_turnover, f.turnover_currency)"></div>
+            </div>
+            <div><label class="lbl">What kind of business is it?</label>
+              <div class="flex flex-wrap gap-2">
+                <template x-for="b in [['b2b','Sells to other businesses'],['consumer','Sells to the public'],['platform','App / online platform'],['trading','Trading / import-export'],['other','Something else']]">
+                  <button type="button" class="seg" :class="f.business_type===b[0]&&'on'" @click="f.business_type=b[0]" x-text="b[1]"></button>
+                </template>
+              </div>
+            </div>
+            <div><label class="lbl">What do they say they do?</label><input class="inp" x-model="f.stated_business" placeholder="e.g. Makes packaging for food companies"></div>
+            <div class="grid sm:grid-cols-2 gap-4">
+              <div><label class="lbl">Their contact email</label><input class="inp" x-model="f.contact_email" placeholder="name@company.com"></div>
+              <div><label class="lbl">Country</label><input class="inp" x-model="f.country"></div>
+            </div>
+            <label class="flex items-center gap-2.5 text-[14px]"><input type="checkbox" x-model="f.claims_funding" class="w-4 h-4 accent-[#3b6cf6]"> They say they have investors or funding</label>
+          </div>
+        </details>
+
+        <div class="flex items-center gap-3 flex-wrap">
+          <button class="btn btn-primary text-base px-6">🔍 Check this supplier</button>
+          <button type="button" class="text-sm text-[#6b7487] hover:text-[#1d2433]" @click="resetForm()">Clear form</button>
+        </div>
+        <div x-show="err" class="text-sm text-[var(--bad)]" x-text="err"></div>
+      </form>
+    </div>
+
+    <div class="space-y-4">
+      <div class="card p-5">
+        <h3 class="font-bold mb-1">Try an example</h3>
+        <p class="text-[13px] text-[#6b7487] mb-3">One click fills the form and runs the check.</p>
+        <div class="space-y-2">
+          <template x-for="d in examples" :key="d.key">
+            <button class="w-full text-left rounded-xl border border-[#e6e9f0] hover:border-[#3b6cf6] p-3 transition" @click="runExample(d)">
+              <div class="flex items-center justify-between gap-2"><span class="font-semibold text-[14.5px]" x-text="d.name"></span><span class="chip" :class="d.chip" x-text="d.expect"></span></div>
+              <div class="text-[12.5px] text-[#6b7487] mt-0.5" x-text="d.note"></div>
+            </button>
+          </template>
+        </div>
+      </div>
+      <div class="card p-5 text-[13.5px] text-[#4a5266] space-y-2">
+        <div class="font-bold text-[#1d2433]">What we look at</div>
+        <div>🏢 Is it in business databases, with real staff?</div>
+        <div>🌐 Does its website work, and how old is it?</div>
+        <div>💼 Does it actually hire people?</div>
+        <div>🚫 Is it on a sanctions list or in bad news?</div>
+        <div>🔗 Does it share an address or director with suspicious firms?</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div x-show="running" x-cloak class="max-w-2xl mx-auto card p-6 sm:p-8 fade">
+    <div class="flex items-center gap-3 mb-1">
+      <svg class="w-6 h-6 spin text-[#3b6cf6]" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity=".2" stroke-width="3"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3"/></svg>
+      <h2 class="text-xl font-bold">Checking <span x-text="f.company_name"></span>…</h2>
+    </div>
+    <p class="text-[#6b7487] text-sm mb-5">This usually takes 10–40 seconds. <span x-text="elapsed()"></span></p>
+    <div class="space-y-2.5">
+      <template x-for="s in steps" :key="s.key">
+        <div class="flex items-center gap-3 text-[15px]" :class="s.status==='wait'?'text-[#a0a8b8]':''">
+          <span class="w-6 h-6 rounded-full grid place-items-center text-xs shrink-0"
+                :class="{'bg-[var(--okbg)] text-[var(--ok)]':s.status==='done','bg-brand-50 text-brand-600':s.status==='run','bg-[#f0f2f6]':s.status==='wait','bg-[var(--warnbg)] text-[var(--warn)]':s.status==='warn'}"
+                x-text="s.status==='done'?'✓':s.status==='run'?'•':s.status==='warn'?'!':''"></span>
+          <span x-text="s.label"></span><span class="text-[13px] text-[#8a93a6]" x-text="s.note"></span>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Candidate chooser -->
+  <div x-show="choice && !running" x-cloak class="max-w-3xl mx-auto card p-6 sm:p-8 fade">
+    <h2 class="text-xl font-bold">Which company do you mean?</h2>
+    <p class="text-[#5b6476] text-sm mt-1 mb-5">Several companies have a similar name. Rather than guess, we'd like you to pick. <b>Tip:</b> adding the website avoids this step.</p>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <template x-for="c in choice?.candidates||[]" :key="c.id">
+        <button class="text-left rounded-xl border border-[#e6e9f0] hover:border-[#3b6cf6] p-4" @click="pick(c)">
+          <div class="font-semibold" x-text="c.name"></div>
+          <div class="text-[13px] text-[#6b7487] mt-0.5" x-text="[c.domain, c.industry, c.size && (c.size+' staff'), c.founded && ('since '+c.founded)].filter(Boolean).join(' · ')"></div>
+        </button>
+      </template>
+      <button class="text-left rounded-xl border-2 border-dashed border-[#dfe3ec] hover:border-[#3b6cf6] p-4" @click="pick({id:-1, domain:null})">
+        <div class="font-semibold">None of these</div><div class="text-[13px] text-[#6b7487]">Continue anyway — we'll still check sanctions, website and news.</div>
+      </button>
+    </div>
+    <button class="mt-5 text-sm text-[#6b7487] hover:text-[#1d2433]" @click="choice=null">← Back to the form</button>
+  </div>
+
+  <!-- ======================= RESULT ======================= -->
+  <template x-if="res && res.status==='done' && !running">
+    <div class="space-y-6 fade">
+      <div class="flex items-center justify-between flex-wrap gap-3">
+        <button class="text-sm font-semibold text-brand-600 hover:underline" @click="newCheck()">← Check another supplier</button>
+        <div class="text-[13px] text-[#6b7487]" x-text="'Checked '+res.created.replace('T',' at ').slice(0,19)"></div>
+      </div>
+
+      <div x-show="res.synthetic" class="rounded-xl bg-[#fff8e6] border border-[#f3d58a] text-[#7a5600] text-sm px-4 py-2.5">This is a <b>made-up example company</b> for demonstration. All names, people and addresses are fictional.</div>
+
+      <!-- Verdict hero -->
+      <div class="card overflow-hidden" :class="'v-'+res.verdict">
+        <div class="p-6 sm:p-8 grid lg:grid-cols-[1fr_320px] gap-8">
+          <div>
+            <div class="flex items-center gap-4">
+              <div class="w-16 h-16 rounded-2xl grid place-items-center text-3xl font-black shrink-0" style="background:var(--cb);color:var(--c)" x-text="({CLEAR:'✓',REVIEW:'!',HIGH_RISK:'✕',INSUFFICIENT_DATA:'?'})[res.verdict]"></div>
+              <div>
+                <div class="text-sm font-semibold text-[#6b7487]" x-text="res.profile.name || res.input.company_name"></div>
+                <div class="text-3xl font-extrabold tracking-tight" style="color:var(--c)" x-text="verdictText(res.verdict)"></div>
+              </div>
+            </div>
+            <p class="mt-5 text-[16px] leading-relaxed text-[#2b3345]" x-text="nocode(res.summary.summary)"></p>
+            <div class="mt-5 rounded-xl p-4" style="background:var(--cb)">
+              <div class="font-bold text-[15px]" style="color:var(--c)">What you should do</div>
+              <div class="text-[14.5px] mt-1 text-[#2b3345]" x-text="advice(res.verdict)"></div>
+            </div>
+            <div class="flex flex-wrap gap-2 mt-5">
+              <a class="btn btn-primary" :href="'/api/investigations/'+res.id+'/dossier.pdf'" target="_blank">📄 Download report</a>
+              <a class="btn btn-soft" x-show="res.verdict==='CLEAR'" :href="'/badge/'+res.id" target="_blank">🛡 Share verified badge</a>
+              <button class="btn btn-soft" @click="openGraph()">🔗 Linked companies</button>
+            </div>
+          </div>
+
+          <div class="space-y-6">
+            <div>
+              <div class="flex items-center justify-between text-sm font-semibold mb-2"><span class="flex items-center gap-1.5">Risk level <span class="tip" data-tip="Based on all the checks we could do. Red flags count fully, concerns count half. Under 20 = low, 20–40 = medium, 40+ = high.">?</span></span><span style="color:var(--c)" x-text="riskWord(res.score.risk_score)+' ('+Math.round(res.score.risk_score)+'/100)'"></span></div>
+              <div class="relative h-3 rounded-full overflow-hidden flex"><div class="h-full bg-[#cdeedd]" style="width:20%"></div><div class="h-full bg-[#ffe3b3]" style="width:20%"></div><div class="h-full bg-[#f8cbc6]" style="width:60%"></div></div>
+              <div class="relative h-0"><div class="absolute -top-[14px] w-4 h-4 rounded-full border-[3px] border-white shadow" style="background:var(--c)" :style="'left:calc('+Math.min(100,res.score.risk_score)+'% - 8px)'"></div></div>
+              <div class="flex justify-between text-[11.5px] text-[#8a93a6] mt-2"><span>Low</span><span>Medium</span><span>High</span></div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between text-sm font-semibold mb-2"><span class="flex items-center gap-1.5">How sure we are <span class="tip" data-tip="How much information we could find about this company, and how reliable those sources are. Low means 'we couldn't find much', not 'something is wrong'.">?</span></span><span x-text="sureWord(res.score.confidence)+' ('+Math.round(res.score.confidence*100)+'%)'"></span></div>
+              <div class="h-3 rounded-full bg-[#eef1f6] overflow-hidden"><div class="h-full rounded-full bg-[#3b6cf6]" :style="'width:'+(res.score.confidence*100)+'%'"></div></div>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div class="rounded-xl bg-[var(--badbg)] py-3"><div class="text-xl font-extrabold text-[var(--bad)]" x-text="count('Flag')"></div><div class="text-[12px] text-[#6b7487]">red flags</div></div>
+              <div class="rounded-xl bg-[var(--warnbg)] py-3"><div class="text-xl font-extrabold text-[var(--warn)]" x-text="count('Partial')"></div><div class="text-[12px] text-[#6b7487]">concerns</div></div>
+              <div class="rounded-xl bg-[var(--okbg)] py-3"><div class="text-xl font-extrabold text-[var(--ok)]" x-text="count('Pass')"></div><div class="text-[12px] text-[#6b7487]">passed</div></div>
+            </div>
+            <div class="text-[12.5px] text-[#6b7487] leading-relaxed">⏱ Done in <b x-text="res.cost.seconds+' seconds'"></b> using <b x-text="res.cost.credits.toFixed(1)+' data credits'"></b>. A manual review typically takes about <span x-text="res.cost.manual_hours"></span> hours.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Warning / good / unknown -->
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="card p-5">
+          <h3 class="font-bold flex items-center gap-2 mb-3"><span class="w-2.5 h-2.5 rounded-full bg-[var(--bad)]"></span>Warning signs</h3>
+          <template x-for="cid in res.score.drivers" :key="cid">
+            <div class="mb-3.5"><div class="flex items-start gap-2"><span class="chip mt-0.5" :class="'c-'+res.outcomes[cid].result" x-text="res.outcomes[cid].result==='Flag'?'Red flag':'Concern'"></span><span class="font-semibold text-[14px]" x-text="title(cid)"></span></div>
+              <div class="text-[13px] text-[#5b6476] mt-1" x-text="ev(res.outcomes[cid])"></div></div>
+          </template>
+          <div x-show="!res.score.drivers.length" class="text-[14px] text-[#5b6476]">🎉 No warning signs found.</div>
+        </div>
+        <div class="card p-5">
+          <h3 class="font-bold flex items-center gap-2 mb-3"><span class="w-2.5 h-2.5 rounded-full bg-[var(--ok)]"></span>Good signs <span class="tip" data-tip="The most important checks this company passed. Every passed check also pulls the risk level down.">?</span></h3>
+          <template x-for="cid in res.score.mitigators" :key="cid">
+            <div class="mb-3.5"><div class="font-semibold text-[14px]" x-text="'✓ '+title(cid)"></div><div class="text-[13px] text-[#5b6476] mt-1" x-text="ev(res.outcomes[cid])"></div></div>
+          </template>
+          <div x-show="!res.score.mitigators.length" class="text-[14px] text-[#5b6476]">None of the key checks could be confirmed.</div>
+        </div>
+        <div class="card p-5">
+          <h3 class="font-bold flex items-center gap-2 mb-3"><span class="w-2.5 h-2.5 rounded-full bg-[#a0a8b8]"></span>Couldn't check <span class="tip" data-tip="We found no information for these. That is NOT a sign of fraud — many genuine small firms have little online presence. It only lowers how sure we are.">?</span></h3>
+          <template x-for="cid in res.score.gaps" :key="cid">
+            <div class="mb-3"><div class="font-semibold text-[14px]" x-text="title(cid)"></div><div class="text-[13px] text-[#5b6476]" x-text="ev(res.outcomes[cid])"></div></div>
+          </template>
+          <div x-show="!res.score.gaps.length" class="text-[14px] text-[#5b6476]">We had information for every automatic check.</div>
+        </div>
+      </div>
+
+      <!-- Questions + innocent explanations -->
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="card p-5">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <h3 class="font-bold">📋 What to ask the supplier for</h3>
+            <button class="btn btn-soft !py-1.5 !px-3 !text-[13px]" @click="copyEmail()" x-text="copied?'Copied ✓':'Copy as email'"></button>
+          </div>
+          <p class="text-[12.5px] text-[#8a93a6] mb-3">Written by AI from the findings above, to help you close the gaps before you pay.</p>
+          <ol class="list-decimal pl-5 space-y-2 text-[14px] text-[#2b3345]"><template x-for="x in res.summary.analyst_questions"><li x-text="nocode(x)"></li></template></ol>
+        </div>
+        <div class="card p-5">
+          <h3 class="font-bold mb-1">🤔 Could there be an innocent explanation?</h3>
+          <p class="text-[12.5px] text-[#8a93a6] mb-3">Written by AI to make sure a genuine business isn't judged unfairly. These do not change the risk level.</p>
+          <ul class="list-disc pl-5 space-y-2 text-[14px] text-[#2b3345]"><template x-for="x in res.summary.innocent_explanations"><li x-text="nocode(x)"></li></template></ul>
+          <div x-show="!res.summary.innocent_explanations?.length" class="text-[14px] text-[#5b6476]">Nothing needed explaining.</div>
+        </div>
+      </div>
+
+      <!-- Company snapshot -->
+      <details class="card">
+        <summary class="p-5 flex items-center justify-between"><span class="font-bold">🏢 Company snapshot <span class="font-normal text-[#6b7487] text-sm">— people, hiring, website</span></span><span class="text-[#8a93a6]">▼</span></summary>
+        <div class="px-5 pb-6 space-y-6">
+          <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-[14px]">
+            <div class="rounded-xl bg-[#f6f8fb] p-3"><div class="text-[12px] text-[#6b7487]">Employees found</div><div class="font-bold text-lg" x-text="res.profile.headcount ?? '—'"></div></div>
+            <div class="rounded-xl bg-[#f6f8fb] p-3"><div class="text-[12px] text-[#6b7487]">Founded</div><div class="font-bold text-lg" x-text="res.profile.founded ?? '—'"></div></div>
+            <div class="rounded-xl bg-[#f6f8fb] p-3"><div class="text-[12px] text-[#6b7487]">Industry</div><div class="font-semibold" x-text="res.profile.industry ?? '—'"></div></div>
+            <div class="rounded-xl bg-[#f6f8fb] p-3"><div class="text-[12px] text-[#6b7487]">Head office</div><div class="font-semibold text-[13px]" x-text="res.profile.hq ?? '—'"></div></div>
+          </div>
+          <div x-show="res.profile.people?.length">
+            <div class="font-semibold mb-2">Key people</div>
+            <div class="flex flex-wrap gap-2"><template x-for="p in res.profile.people"><div class="rounded-xl border border-[#e6e9f0] px-3 py-2"><div class="text-[14px] font-medium" x-text="p.name"></div><div class="text-[12px] text-[#6b7487]" x-text="p.title"></div></div></template></div>
+          </div>
+          <div>
+            <div class="font-semibold mb-2">Recent job ads <span class="font-normal text-[#6b7487] text-sm" x-text="res.jobs ? '('+res.jobs.total+' in total, '+res.jobs.last_12m+' in the last year)' : ''"></span></div>
+            <div x-show="!res.jobs?.listings?.length" class="text-[14px] text-[#5b6476]">No job ads found.</div>
+            <div class="overflow-x-auto" x-show="res.jobs?.listings?.length">
+              <table class="w-full text-[13.5px]"><thead class="text-left text-[#6b7487]"><tr><th class="py-1.5 font-medium">Role</th><th class="font-medium">Location</th><th class="font-medium">Posted</th></tr></thead>
+                <tbody><template x-for="j in res.jobs?.listings||[]"><tr class="border-t border-[#eef1f6]"><td class="py-2 pr-3"><a x-show="j.url" :href="j.url" target="_blank" rel="noopener" class="text-brand-600 hover:underline" x-text="j.title"></a><span x-show="!j.url" x-text="j.title"></span></td><td class="pr-3 text-[#5b6476]" x-text="j.location||'—'"></td><td class="text-[#5b6476]" x-text="j.date"></td></tr></template></tbody></table>
+            </div>
+          </div>
+          <div class="text-[13.5px] text-[#5b6476]">
+            <b class="text-[#2b3345]">Website:</b> <span x-text="res.site?.reachable ? ('opens normally — “'+(res.site.title||'')+'”') : 'does not open or was not given'"></span><br>
+            <b class="text-[#2b3345]">Website address registered:</b> <span x-text="res.rdap?.created || 'unknown'"></span>
+          </div>
+        </div>
+      </details>
+
+      <!-- All checks -->
+      <details class="card" :open="allOpen" @toggle="allOpen=$event.target.open">
+        <summary class="p-5 flex items-center justify-between"><span class="font-bold">🔎 See every check <span class="font-normal text-[#6b7487] text-sm" x-text="'— '+autoCount()+' done automatically, '+(wb.checks.length-autoCount())+' for a person to complete'"></span></span><span class="text-[#8a93a6]">▼</span></summary>
+        <div class="px-5 pb-6">
+          <div class="flex flex-wrap gap-2 mb-4">
+            <template x-for="t in tabsList">
+              <button class="seg" :class="filter===t[0]&&'on'" @click="filter=t[0]" x-text="t[1]"></button>
+            </template>
+          </div>
+          <div x-show="filter==='manual'" class="rounded-xl bg-[#f6f8fb] p-3 text-[13.5px] text-[#4a5266] mb-3">These need documents or records we can't reach online (ownership papers, bank statements, government portals). If you've checked one yourself, mark it here — the risk level updates instantly.</div>
+          <div x-show="!groupedChecks().length" class="text-[14px] text-[#5b6476]">Nothing to show here.</div>
+          <template x-for="grp in groupedChecks()" :key="grp.cat">
+            <div class="mb-5">
+              <div class="text-[12.5px] font-bold uppercase tracking-wide text-[#8a93a6] mb-2" x-text="grp.label"></div>
+              <div class="divide-y divide-[#eef1f6] border border-[#eef1f6] rounded-xl">
+                <template x-for="c in grp.items" :key="c.id">
+                  <div class="p-3.5">
+                    <div class="flex items-start gap-3">
+                      <span class="chip w-[104px] text-center shrink-0" :class="chipClass(c.o)" x-text="resText(c.o)"></span>
+                      <div class="min-w-0 flex-1">
+                        <div class="text-[14.5px] font-semibold"><span x-text="title(c.id, c.name)"></span> <span x-show="c.hard_stop" class="chip c-Flag !text-[10.5px] ml-1" title="If this fails, the case goes to a senior reviewer no matter what">deal-breaker</span></div>
+                        <div class="text-[13px] text-[#5b6476] mt-0.5" x-show="c.o?.evidence" x-text="ev(c.o)"></div>
+                        <div class="text-[12px] text-[#8a93a6] mt-0.5" x-show="c.o?.source" x-text="'Source: '+src(c.o?.source)"></div>
+                        <div class="text-[12.5px] text-[#6b7487] mt-1" x-show="!c.auto && !c.o" x-text="'Red flag if: '+c.rule"></div>
+                      </div>
+                    </div>
+                    <div x-show="!c.auto" class="flex flex-wrap items-center gap-1.5 mt-2.5 sm:ml-[116px]">
+                      <template x-for="r in [['Pass','OK'],['Partial','Concern'],['Flag','Red flag'],['N/A','Not relevant']]">
+                        <button class="chip border hover:brightness-95" :class="c.o?.result===r[0] ? 'c-'+r[0].replace('/','') : 'bg-white border-[#dfe3ec] text-[#4a5266]'" @click="setCheck(c.id, r[0])" x-text="r[1]"></button>
+                      </template>
+                      <button class="chip bg-white border border-[#dfe3ec] text-[#8a93a6]" x-show="c.o" @click="setCheck(c.id, null)">clear</button>
+                      <input class="inp !py-1.5 !text-[13px] flex-1 min-w-[200px]" placeholder="Note: what you saw, where, when" x-model="notes[c.id]">
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+      </details>
+    </div>
+  </template>
+</section>
+
+<!-- ======================= HISTORY ======================= -->
+<section x-show="tab==='history'" x-cloak class="card p-6">
+  <h2 class="text-xl font-bold mb-4">Past checks</h2>
+  <div x-show="!history.length" class="text-[#6b7487]">No checks yet.</div>
+  <div class="divide-y divide-[#eef1f6]">
+    <template x-for="h in history" :key="h.id">
+      <button class="w-full text-left py-3 flex items-center gap-4 hover:bg-[#fafbfd] px-2 rounded-lg" @click="openInv(h.id)">
+        <span class="chip w-[190px] text-center" :class="vChip(h.verdict)" x-text="verdictText(h.verdict)"></span>
+        <span class="font-semibold flex-1" x-text="h.company"></span>
+        <span x-show="h.synthetic" class="chip c-NA">example</span>
+        <span class="text-[13px] text-[#8a93a6]" x-text="h.created.replace('T',' ').slice(0,16)"></span>
+      </button>
+    </template>
+  </div>
+</section>
+
+<!-- ======================= HOW ======================= -->
+<section x-show="tab==='how'" x-cloak class="grid md:grid-cols-2 gap-6 text-[14.5px] leading-relaxed text-[#2b3345]">
+  <div class="card p-6 space-y-4">
+    <h2 class="text-xl font-bold">How it works</h2>
+    <p><b>1. We find the company</b> in business databases (Crustdata), using its website or name.</p>
+    <p><b>2. We gather evidence</b> from its profile (staff, history, revenue estimate), its job ads, its website, website registration records, the news, and the US sanctions list.</p>
+    <p><b>3. We run <span x-text="autoCount()"></span> automatic checks.</b> Each asks a simple question like "Does it have the staff it claims?" and answers OK, Concern or Red flag.</p>
+    <p><b>4. We work out a risk level</b> using fixed rules from the due-diligence checklist. The AI does <i>not</i> decide the verdict.</p>
+    <p><b>5. AI writes the plain-English summary</b>, possible innocent explanations, and the questions to ask the supplier — using only the findings above.</p>
+  </div>
+  <div class="card p-6 space-y-4">
+    <h2 class="text-xl font-bold">Common questions</h2>
+    <p><b>What do the verdicts mean?</b><br>✓ <b>Looks legitimate</b> — no real warning signs.<br>! <b>Needs a human review</b> — some warning signs; ask for documents.<br>✕ <b>High risk</b> — serious warning signs or a deal-breaker.<br>? <b>Not enough data</b> — we couldn't find enough to judge.</p>
+    <p><b>What is a deal-breaker?</b><br>A check so serious (e.g. being on a sanctions list) that the case must go to a senior person, whatever the score.</p>
+    <p><b>What does "Linked companies" show?</b><br>Anything this company shares with other companies we have checked — the same director, address, phone or tax ID. Many companies sharing one director or address is a classic sign of a shell network.</p>
+    <p><b>Is "couldn't check" bad?</b><br>No. Many genuine small businesses have little online presence. It only lowers how sure we are.</p>
+    <p class="text-[13px] text-[#6b7487]">This tool shows warning signs to support your decision. It is not a legal finding.</p>
+    <div class="text-[12.5px] text-[#8a93a6] border-t border-[#eef1f6] pt-3" x-show="health">System: business data <span x-text="health?.crustdata?'connected':'offline'"></span> · AI <span x-text="health?.llm?'connected':'offline'"></span> · <span x-text="health?.sanctions"></span> · checklist: <span x-text="health?.workbook"></span></div>
+  </div>
+</section>
+</main>
+
+<!-- Linked companies modal -->
+<div x-show="graphOpen" x-cloak class="fixed inset-0 z-40 bg-[#1d2433]/50 grid place-items-center p-4" @keydown.escape.window="graphOpen=false">
+  <div class="card w-full max-w-4xl p-6" @click.outside="graphOpen=false">
+    <div class="flex items-start justify-between gap-4 mb-2">
+      <div>
+        <h3 class="text-lg font-bold">Linked companies</h3>
+        <p class="text-[13.5px] text-[#5b6476] mt-1 max-w-2xl">Shows what this company shares with other companies we have checked: the same <b>director</b>, <b>address</b>, <b>phone</b>, <b>email</b> or <b>tax ID</b>. One director or address shared by many companies is a classic sign of a network of shell companies.</p>
+      </div>
+      <button class="btn btn-soft !py-1.5 !px-3" @click="graphOpen=false">Close</button>
+    </div>
+    <div class="flex flex-wrap gap-4 text-[12.5px] text-[#5b6476] mb-3" x-show="!graphEmpty">
+      <span><span class="inline-block w-3 h-3 rounded-full bg-[#3b6cf6] align-middle"></span> this company</span>
+      <span><span class="inline-block w-3 h-3 rounded-full bg-[#9aa3b5] align-middle"></span> other company</span>
+      <span><span class="inline-block w-3 h-3 rounded-full bg-[#c9372c] align-middle"></span> company we rejected before</span>
+      <span><span class="inline-block w-3 h-3 rotate-45 bg-[#e39b19] align-middle"></span> shared person</span>
+      <span><span class="inline-block w-3 h-3 bg-[#14b8a6] align-middle"></span> shared address / phone / ID</span>
+    </div>
+    <div x-show="graphEmpty" class="rounded-xl bg-[var(--okbg)] text-[var(--ok)] p-4 text-[14.5px] font-medium">✓ No links found — this company shares no director, address, phone or ID with any other company we know of.</div>
+    <div id="graph" x-show="!graphEmpty"></div>
+    <div class="text-[13px] text-[#5b6476] mt-2" x-text="graphInfo"></div>
+    <div class="text-[12px] text-[#8a93a6] mt-1">We only know about companies checked in this app, plus a made-up example network for the demo.</div>
+  </div>
+</div>
+
+<script>
+function app() {
+  const blank = () => ({ company_name: '', domain: '', gstin: '', director: '', declared_turnover: null, turnover_currency: 'INR', declared_headcount: null,
+                         country: 'India', business_type: 'b2b', stated_business: '', contact_email: '', claims_funding: false });
+  const STEP_LABELS = [['intake', 'Reading your details'], ['resolve', 'Finding the company'], ['enrich', 'Reading its business profile'],
+    ['jobs', 'Checking its job ads'], ['website', 'Visiting its website'], ['domain_age', 'Checking how old the website is'],
+    ['sanctions', 'Checking sanctions lists'], ['news', 'Searching the news'], ['adverse_media', 'Reading news headlines'],
+    ['investigate_more', 'Digging deeper'], ['critic', 'Writing your summary']];
+  return {
+    tab: 'check', L: {}, dark: document.documentElement.classList.contains('dark'), f: blank(), health: null, wb: { checks: [], categories: [] }, defs: {}, moreOpen: false, err: '',
+    running: false, t0: 0, now: 0, steps: [], res: null, choice: null, filter: 'issues', allOpen: false, notes: {}, history: [],
+    graphOpen: false, graphInfo: '', graphEmpty: false, copied: false, demos: [], examples: [],
+    tabsList: [['issues', 'Warning signs'], ['auto', 'All automatic checks'], ['unverifiable', "Couldn't check"], ['manual', 'For a person to complete']],
+    async init() {
+      [this.health, this.demos, this.wb] = await Promise.all(['/api/health', '/api/demos', '/api/workbook'].map(u => fetch(u).then(r => r.json())));
+      this.wb.checks.forEach(c => this.defs[c.id] = c); this.L = this.wb.labels || {};
+      const d = Object.fromEntries(this.demos.map(x => [x.domain, x.intake]));
+      this.examples = [
+        { key: 'k', name: 'Kestrel Analytics', note: 'Made-up company with a healthy footprint', expect: 'looks fine', chip: 'c-Pass', intake: d['kestrelanalytics.demo'] },
+        { key: 'o', name: 'Orbit Softech', note: 'Made-up company with a thin footprint', expect: 'needs review', chip: 'c-Partial', intake: d['orbitsoftech.demo'] },
+        { key: 'n', name: 'Nimbus Tradelink', note: 'Made-up shell company in a shell network', expect: 'high risk', chip: 'c-Flag', intake: d['nimbustradelink.demo'] },
+        { key: 'z', name: 'Zerodha', note: 'Real company, checked live', expect: 'looks fine', chip: 'c-Pass',
+          intake: { company_name: 'Zerodha', domain: 'zerodha.com', director: 'Nithin Kamath', declared_turnover: 80000000000, declared_headcount: 3000, business_type: 'platform', stated_business: 'Online stock broking and trading platform' } },
+        { key: 'g', name: 'Garantex Europe', note: 'Real crypto exchange on the US sanctions list', expect: 'high risk', chip: 'c-Flag',
+          intake: { company_name: 'Garantex Europe OU', domain: 'garantex.org', country: 'Estonia', business_type: 'platform', stated_business: 'Cryptocurrency exchange', declared_turnover: 500000000, turnover_currency: 'USD', declared_headcount: 150, claims_funding: true } },
+      ];
+      setInterval(() => this.now = Date.now(), 500);
+      const id = new URLSearchParams(location.search).get('case'); if (id) this.openInv(id);
+    },
+    toggleTheme() {
+      this.dark = !this.dark;
+      document.documentElement.classList.toggle('dark', this.dark);
+      try { localStorage.setItem('shellx-theme', this.dark ? 'dark' : 'light'); } catch (e) {}
+      if (this.graphOpen && this.res) this.openGraph();
+    },
+    resetForm() { this.f = blank(); this.err = ''; },
+    newCheck() { this.res = null; this.choice = null; history.replaceState(null, '', location.pathname); window.scrollTo({ top: 0 }); },
+    runExample(d) { this.f = { ...blank(), ...d.intake }; this.start(); },
+    clean(o) { const x = {}; for (const [k, v] of Object.entries(o)) x[k] = (v === '' ? null : v); return x; },
+    elapsed() { return this.running && this.t0 ? Math.round((this.now - this.t0) / 1000) + 's so far' : ''; },
+    async start(extra = {}) {
+      this.err = ''; this.running = true; this.t0 = Date.now(); this.res = null; this.choice = null; this.notes = {}; this.filter = 'issues'; this.allOpen = false;
+      this.steps = STEP_LABELS.filter(s => s[0] !== 'investigate_more').map(([key, label]) => ({ key, label, status: 'wait', note: '' }));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const r = await fetch('/api/investigate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...this.clean(this.f), ...extra }) });
+      if (!r.ok) { this.running = false; this.err = 'Please check the details you entered (for example the website or numbers).'; return; }
+      const { id } = await r.json();
+      const es = new EventSource('/api/stream/' + id);
+      es.addEventListener('log', e => this.onEvent(JSON.parse(e.data)));
+      es.addEventListener('result', e => { es.close(); this.running = false; const r = JSON.parse(e.data);
+        if (r.status === 'done') { this.res = r; this.choice = null; history.replaceState(null, '', '?case=' + r.id); }
+        else if (r.status === 'error') this.err = 'Something went wrong. Please try again.'; });
+      es.onerror = () => { es.close(); this.running = false; };
+    },
+    onEvent(ev) {
+      if (ev.type === 'choice') { this.choice = ev; return; }
+      if (!ev.step) return;
+      let s = this.steps.find(x => x.key === ev.step);
+      if (!s) { const lab = STEP_LABELS.find(x => x[0] === ev.step); if (!lab) return; s = { key: ev.step, label: lab[1], status: 'wait', note: '' }; this.steps.splice(this.steps.length - 1, 0, s); }
+      s.status = ev.status === 'start' ? 'run' : (ev.status === 'error' || ev.status === 'warn') ? 'warn' : 'done';
+      if (ev.status === 'error' || ev.status === 'warn') s.note = '— skipped';
+    },
+    pick(c) { this.start({ crustdata_company_id: c.id, domain: this.f.domain || c.domain }); },
+    async openInv(id) { const r = await fetch('/api/investigations/' + id); if (!r.ok) return; this.res = await r.json(); this.tab = 'check'; this.choice = null; this.running = false;
+      history.replaceState(null, '', '?case=' + id); window.scrollTo({ top: 0 }); },
+    async loadHistory() { this.history = await fetch('/api/investigations').then(r => r.json()); },
+    title(id, fallback) { return this.L.checks?.[id] || fallback || this.defs[id]?.name || ''; },
+    ev(o) { return this.nocode(o?.evidence || '').replace(/^Unverifiable: /, '').replace(/^Couldn't check: /, ''); },
+    src(s) { return s ? (this.L.sources?.[s] || s) : ''; },
+    nocode(t) { return (t || '').replace(/\s*\(?\b(?:REG|OWN|ADR|OPS|PPL|GRF|BUS|SCR|DOC|TXN|MON)-\d{2}\b(?:\s*(?:,|and|&|\/)\s*\b(?:REG|OWN|ADR|OPS|PPL|GRF|BUS|SCR|DOC|TXN|MON)-\d{2}\b)*\)?/g, '').replace(/\s+([,.;:])/g, '$1'); },
+    verdictText(v) { return this.L.verdicts?.[v] || v; },
+    vChip(v) { return ({ CLEAR: 'c-Pass', REVIEW: 'c-Partial', HIGH_RISK: 'c-Flag' })[v] || 'c-NA'; },
+    advice(v) { return ({
+      CLEAR: 'You can go ahead with your normal process. Keep the downloaded report for your records.',
+      REVIEW: 'Before paying or signing, ask the supplier for the documents listed below and have someone look at the warning signs.',
+      HIGH_RISK: 'Do not pay, sign or share sensitive information yet. Send this report to a senior person or your compliance adviser first.',
+      INSUFFICIENT_DATA: "We couldn't find enough about this company to judge it. Ask them for the documents listed below before going ahead." })[v] || ''; },
+    riskWord(s) { return s >= 40 ? 'High' : s >= 20 ? 'Medium' : 'Low'; },
+    sureWord(c) { return c >= .7 ? 'Very sure' : c >= .5 ? 'Fairly sure' : c >= .3 ? 'Somewhat sure' : 'Not very sure'; },
+    count(r) { return Object.values(this.res?.outcomes || {}).filter(o => o.result === r).length; },
+    autoCount() { return this.health?.automated_checks || 38; },
+    resText(o) { return !o ? 'To do' : ({ Flag: 'Red flag', Partial: 'Concern', Pass: 'OK', 'N/A': 'Not relevant' })[o.result] || 'No data'; },
+    chipClass(o) { return !o ? 'c-U' : !o.result ? 'c-U' : o.result === 'N/A' ? 'c-NA' : 'c-' + o.result; },
+    groupedChecks() {
+      if (!this.res) return [];
+      const order = { Flag: 0, Partial: 1, Pass: 3, 'N/A': 4 };
+      const isAuto = id => !!this.L.checks?.[id];
+      const items = this.wb.checks.map(c => ({ ...c, o: this.res.outcomes[c.id], auto: isAuto(c.id) }))
+        .filter(c => this.filter === 'issues' ? ['Flag', 'Partial'].includes(c.o?.result)
+          : this.filter === 'auto' ? c.auto
+          : this.filter === 'unverifiable' ? (c.auto && c.o && !c.o.result)
+          : this.filter === 'manual' ? !c.auto : true);
+      const groups = {};
+      for (const c of items) (groups[c.category] = groups[c.category] || []).push(c);
+      return this.wb.categories.filter(k => groups[k]).map(k => ({ cat: k, label: this.L.categories?.[k] || k,
+        items: groups[k].sort((a, b) => this.filter === 'manual' ? 0 : ((order[a.o?.result] ?? 2) - (order[b.o?.result] ?? 2)) || b.weight - a.weight) }));
+    },
+    async setCheck(cid, result) {
+      const r = await fetch(`/api/investigations/${this.res.id}/checks/${cid}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ result, note: this.notes[cid] || '' }) });
+      if (r.ok) this.res = await r.json();
+    },
+    async copyEmail() {
+      const name = this.res.profile.name || this.res.input.company_name;
+      const qs = (this.res.summary.analyst_questions || []).map((q, i) => `${i + 1}. ${this.nocode(q)}`).join('\n');
+      const text = `Subject: Documents needed before we proceed\n\nDear ${name} team,\n\nAs part of our standard supplier checks, could you please share the following:\n\n${qs}\n\nThank you,\n`;
+      try { await navigator.clipboard.writeText(text); this.copied = true; setTimeout(() => this.copied = false, 2000); } catch (e) { alert(text); }
+    },
+    async openGraph() {
+      this.graphOpen = true; this.graphEmpty = false; this.graphInfo = '';
+      const g = await fetch(`/api/investigations/${this.res.id}/graph`).then(r => r.json());
+      const others = g.nodes.filter(n => ['company', 'watch'].includes(n.group));
+      if (!others.length) { this.graphEmpty = true; return; }
+      const style = { focus: { color: '#3b6cf6', shape: 'dot', size: 26 }, company: { color: '#9aa3b5', shape: 'dot', size: 14 }, watch: { color: '#c9372c', shape: 'dot', size: 22 },
+                      director: { color: '#e39b19', shape: 'diamond', size: 14 }, address: { color: '#14b8a6', shape: 'square', size: 10 }, phone: { color: '#14b8a6', shape: 'square', size: 9 },
+                      email: { color: '#14b8a6', shape: 'square', size: 9 }, pan: { color: '#14b8a6', shape: 'square', size: 9 }, domain: { color: '#14b8a6', shape: 'square', size: 9 } };
+      const nodes = g.nodes.map(n => ({ id: n.id, label: n.label, title: n.group, ...(style[n.group] || {}), font: { color: this.dark ? '#dfe3ee' : '#2b3345', size: 12 } }));
+      const edges = g.edges.map(e => ({ ...e, color: { color: this.dark ? '#3a4458' : '#cdd3df' } }));
+      const w = others.filter(n => n.group === 'watch').length;
+      this.graphInfo = `Linked to ${others.length} other compan${others.length === 1 ? 'y' : 'ies'}` + (w ? `, including ${w} we rejected before.` : '.');
+      await this.$nextTick();
+      new vis.Network(document.getElementById('graph'), { nodes, edges }, { physics: { stabilization: true, barnesHut: { springLength: 120 } }, interaction: { hover: true } });
+    },
+    money(v, cur) { if (!v) return ''; if (cur === 'INR') { return v >= 1e7 ? `₹${(v / 1e7).toFixed(2)} crore` : v >= 1e5 ? `₹${(v / 1e5).toFixed(2)} lakh` : `₹${v.toLocaleString('en-IN')}`; }
+      return v >= 1e9 ? `$${(v / 1e9).toFixed(2)} billion` : v >= 1e6 ? `$${(v / 1e6).toFixed(2)} million` : `$${v.toLocaleString()}`; },
+  };
+}
+</script>
+</body>
+</html>

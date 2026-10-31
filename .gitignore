@@ -1,0 +1,11 @@
+# secrets
+.env
+# local environment
+.venv/
+__pycache__/
+*.pyc
+# runtime data: API cache, database, sanctions lists, logs (re-created on start)
+data/
+# local notes / screenshots
+Screenshot*.png
+shellx_pro_master_plan.md
